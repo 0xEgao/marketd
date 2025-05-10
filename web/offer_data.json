@@ -18,7 +18,7 @@
     "minimum_locktime": 20,
     "required_confirms": 1,
     "time_relative_fee_pct": 0.005,
-    "timestamp": 1746896673,
+    "timestamp": 1746899012,
     "tweakable_point": "0295dc108b6fe6036072f7db591736f69296a9312b1b95d986a8f88fa0672cd5d4"
   },
   {
@@ -40,7 +40,7 @@
     "minimum_locktime": 20,
     "required_confirms": 1,
     "time_relative_fee_pct": 0.005,
-    "timestamp": 1746896673,
+    "timestamp": 1746899012,
     "tweakable_point": "02776719ea565e1d50f0c548730b03675004d9b2dc310c464a08064162c432c43f"
   },
   {
@@ -62,7 +62,7 @@
     "minimum_locktime": 20,
     "required_confirms": 1,
     "time_relative_fee_pct": 0.005,
-    "timestamp": 1746896673,
+    "timestamp": 1746899012,
     "tweakable_point": "0357772143afb7b85a6b1455480fa93bac827ca1fba13cbe648cf882795b404099"
   }
 ]

@@ -209,7 +209,7 @@ fn main() -> Result<()> {
                         "tweakable_point": hex::encode(&o.offer.tweakable_point)
                     })
                 }).collect();
-                let _ = fs::write("offer_data.json", serde_json::to_string_pretty(&json)?);
+                let _ = fs::write("../web/offer_data.json", serde_json::to_string_pretty(&json)?);
                 println!("Updated with {} offers", offers.len());
             }
         }
