@@ -7,9 +7,16 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-#[derive(Serialize, Deserialize)]
-enum DnsRequest {
+#[derive(Serialize, Deserialize, Debug)]
+pub enum TrackerClientToServer {
     Get,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum TrackerServerToClient {
+    Address { addresses: Vec<String> },
+    Ping { address: String, port: u16 },
+    WatchResponse { mempool_tx: Vec<()> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -29,16 +36,10 @@ enum TakerToMakerMessage {
 
 #[derive(Serialize, Deserialize)]
 enum MakerToTakerMessage {
-    MakerHello(MakerHello),
+    MakerHello(TakerHello),
     RespOffer(Box<Offer>),
     #[serde(other)]
     Unknown,
-}
-
-#[derive(Serialize, Deserialize)]
-struct MakerHello {
-    protocol_version_min: u32,
-    protocol_version_max: u32,
 }
 
 mod txid_serde {
@@ -118,10 +119,22 @@ struct OfferAndAddress {
     timestamp: u64,
 }
 
-fn send_msg<T: Serialize>(s: &mut impl Write, msg: &T) -> Result<()> {
+// Tracker messages
+fn send_tracker_msg<T: Serialize>(s: &mut impl Write, msg: &T) -> Result<()> {
     let b = serde_cbor::to_vec(msg)?;
     s.write_all(&(b.len() as u32).to_be_bytes())?;
     s.write_all(&b)?;
+    s.flush()?;
+    Ok(())
+}
+
+// Taker to maker messages
+fn send_taker_msg<T: Serialize>(s: &mut impl Write, msg: &T) -> Result<()> {
+    let mut msg_bytes = Vec::new();
+    msg_bytes.push(0x01); // Taker prefix
+    msg_bytes.extend(serde_cbor::to_vec(msg)?);
+    s.write_all(&(msg_bytes.len() as u32).to_be_bytes())?;
+    s.write_all(&msg_bytes)?;
     s.flush()?;
     Ok(())
 }
@@ -135,7 +148,7 @@ fn read_msg(s: &mut impl Read) -> Result<Vec<u8>> {
 }
 
 fn handshake(s: &mut (impl Read + Write)) -> Result<()> {
-    send_msg(
+    send_taker_msg(
         s,
         &TakerToMakerMessage::TakerHello(TakerHello {
             protocol_version_min: 1,
@@ -150,28 +163,32 @@ fn handshake(s: &mut (impl Read + Write)) -> Result<()> {
     }
 }
 
-fn fetch_dns() -> Result<Vec<MakerAddress>> {
+fn fetch_addresses() -> Result<Vec<MakerAddress>> {
     for i in 0..3 {
-        let target_addr = "kizqnaslcb2r3mbk2vm77bdff3madcvddntmaaz2htmkyuw7sgh4ddqd.onion:8080";
-        println!("Fetching DNS {target_addr}... Try {i}");
+        let target_addr = "lp75qh3del4qot6fmkqq4taqm33pidvk63lncvhlwsllbwrl2f4g4qqd.onion:8080";
+        println!("Fetching addresses... Try {i}");
         if let Ok(socks_conn) = Socks5Stream::connect("127.0.0.1:9050", target_addr) {
             let mut s = socks_conn.into_inner();
-            send_msg(&mut s, &DnsRequest::Get)?;
-            let resp: String = serde_cbor::from_slice(&read_msg(&mut s)?)?;
-            let addrs: Vec<MakerAddress> = resp
-                .lines()
-                .filter_map(|line| {
-                    line.split_once(':').map(|(addr, port)| MakerAddress {
-                        onion_addr: addr.to_string(),
-                        port: port.to_string(),
+            send_tracker_msg(&mut s, &TrackerClientToServer::Get)?;
+            let data = read_msg(&mut s)?;
+
+            if let Ok(TrackerServerToClient::Address { addresses }) = serde_cbor::from_slice(&data)
+            {
+                let addrs: Vec<MakerAddress> = addresses
+                    .iter()
+                    .filter_map(|line| {
+                        line.split_once(':').map(|(addr, port)| MakerAddress {
+                            onion_addr: addr.to_string(),
+                            port: port.to_string(),
+                        })
                     })
-                })
-                .collect();
-            return Ok(addrs);
+                    .collect();
+                return Ok(addrs);
+            }
         }
         thread::sleep(Duration::from_secs(5));
     }
-    anyhow::bail!("DNS failed")
+    anyhow::bail!("Failed to get addresses")
 }
 
 fn get_offer(addr: &MakerAddress) -> Result<OfferAndAddress> {
@@ -180,7 +197,7 @@ fn get_offer(addr: &MakerAddress) -> Result<OfferAndAddress> {
     let socks_conn = Socks5Stream::connect("127.0.0.1:9050", addr_str.as_str())?;
     let mut s = socks_conn.into_inner();
     handshake(&mut s)?;
-    send_msg(&mut s, &TakerToMakerMessage::ReqGiveOffer(GiveOffer))?;
+    send_taker_msg(&mut s, &TakerToMakerMessage::ReqGiveOffer(GiveOffer))?;
     let msg: MakerToTakerMessage = serde_cbor::from_slice(&read_msg(&mut s)?)?;
     if let MakerToTakerMessage::RespOffer(offer) = msg {
         Ok(OfferAndAddress {
@@ -211,7 +228,7 @@ fn get_all_offers(addrs: &[MakerAddress]) -> Vec<OfferAndAddress> {
 fn main() -> Result<()> {
     println!("Starting...");
     loop {
-        if let Ok(addrs) = fetch_dns() {
+        if let Ok(addrs) = fetch_addresses() {
             let offers = get_all_offers(&addrs);
             if !offers.is_empty() {
                 let json: Vec<serde_json::Value> = offers
