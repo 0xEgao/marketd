@@ -113,9 +113,12 @@ function App() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-orange-400 font-medium">
+                      <a href={`https://mempool.space/tx/${offer.fidelity_bond.outpoint.txid}`}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="text-orange-400 font-medium hover:underline">
                         {offer.fidelity_bond.amount.toLocaleString()}
-                      </span>
+                      </a>
                     </td>
                   </tr>
                 ))}
