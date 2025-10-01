@@ -113,9 +113,18 @@ function App() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-orange-400 font-medium">
-                        {offer.fidelity_bond.amount.toLocaleString()}
-                      </span>
+                      <div className="font-medium text-gray-200">
+                       {Number(offer.fidelity_bond.amount).toLocaleString()}
+                      </div>
+                      <a
+                        href={`http://xlrj7ilheypw67premos73gxlcl7ha77kbhrqys7mydp7jve25olsxyd.onion/tx/${offer.fidelity_bond.outpoint.txid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-orange-400 text-xs hover:underline truncate block max-w-xs"
+                        title={offer.fidelity_bond.outpoint.txid} 
+                      >
+                        {offer.fidelity_bond.outpoint.txid}
+                      </a>
                     </td>
                   </tr>
                 ))}
