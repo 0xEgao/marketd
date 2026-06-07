@@ -83,15 +83,6 @@ function formatTimestamp(timestamp) {
   });
 }
 
-function stateLabel(state) {
-  if (!state?.kind) return "Unknown";
-  if (state.kind === "unresponsive") {
-    return `Unresponsive${state.retries ? ` (${state.retries})` : ""}`;
-  }
-
-  return state.kind[0].toUpperCase() + state.kind.slice(1);
-}
-
 function unwrapOffer(item) {
   if (!item) return null;
 
@@ -109,8 +100,6 @@ function unwrapOffer(item) {
       item.last_offer_update_ts || offer.last_offer_update_ts || null,
     next_offer_check_ts:
       item.next_offer_check_ts || offer.next_offer_check_ts || null,
-    protocol: item.protocol || offer.protocol || null,
-    state: item.state || offer.state || null,
     timestamp: item.timestamp || offer.timestamp || null,
     hasOffer: Boolean(item.offer || offer.fidelity_bond),
   };
@@ -215,7 +204,7 @@ export default function App() {
   const [responseTimeMs, setResponseTimeMs] = useState(null);
 
   const explorerBase =
-    import.meta.env.VITE_EXPLORER_BASE || "https://mempool.space/signet";
+    import.meta.env.VITE_EXPLORER_BASE || "http://170.75.166.88:8080";
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
@@ -395,14 +384,12 @@ export default function App() {
                     />
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[1080px] border-separate border-spacing-y-2 font-mono text-sm">
+                      <table className="w-full min-w-[920px] border-separate border-spacing-y-2 font-mono text-sm">
                         <thead>
                           <tr className="text-left text-[0.68rem] uppercase tracking-[0.18em] text-black/45">
                             <th className="px-4 py-2 font-medium">
                               Tor Address
                             </th>
-                            <th className="px-4 py-2 font-medium">State</th>
-                            <th className="px-4 py-2 font-medium">Protocol</th>
                             <th className="px-4 py-2 font-medium">Base Fee</th>
                             <th className="px-4 py-2 font-medium">Fee Rate</th>
                             <th className="px-4 py-2 font-medium">Time Rate</th>
@@ -435,12 +422,6 @@ export default function App() {
                                   title={offer.address}
                                 >
                                   {formatTorAddress(offer.address)}
-                                </td>
-                                <td className="border-y border-black/10 bg-white/35 px-4 py-3 text-black/65 transition group-hover/row:border-[#f7931a]/25 group-hover/row:bg-[#f7931a]/5">
-                                  {stateLabel(offer.state)}
-                                </td>
-                                <td className="border-y border-black/10 bg-white/35 px-4 py-3 text-black/65 transition group-hover/row:border-[#f7931a]/25 group-hover/row:bg-[#f7931a]/5">
-                                  {offer.protocol || "-"}
                                 </td>
                                 <td className="border-y border-black/10 bg-white/35 px-4 py-3 text-black transition group-hover/row:border-[#f7931a]/25 group-hover/row:bg-[#f7931a]/5">
                                   {formatSats(offer.base_fee)}
