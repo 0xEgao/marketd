@@ -4,9 +4,14 @@ const POLL_INTERVAL_MS = 60_000;
 
 const STATUS_TABS = [
   { id: "good", label: "Good Makers" },
-  { id: "bad", label: "Bad Makers" },
-  { id: "unresponsive", label: "Unresponsive" },
+  { id: "unavailable", label: "Unavailable" },
+  { id: "banned", label: "Banned" },
 ];
+
+const LEGACY_STATUS_ALIASES = {
+  bad: "banned",
+  unresponsive: "unavailable",
+};
 
 function RefreshIcon({ spinning = false }) {
   return (
@@ -108,8 +113,8 @@ function unwrapOffer(item) {
 function normalizeOfferBuckets(data) {
   const buckets = {
     good: [],
-    bad: [],
-    unresponsive: [],
+    unavailable: [],
+    banned: [],
   };
 
   const makers = Array.isArray(data)
@@ -123,7 +128,8 @@ function normalizeOfferBuckets(data) {
   if (Array.isArray(makers)) {
     makers.forEach((item) => {
       const status = item?.state?.kind || item?.status || "good";
-      const normalizedStatus = buckets[status] ? status : "good";
+      const normalizedStatus =
+        LEGACY_STATUS_ALIASES[status] || (buckets[status] ? status : "good");
       const offer = unwrapOffer(item);
 
       if (offer) buckets[normalizedStatus].push(offer);
@@ -134,8 +140,17 @@ function normalizeOfferBuckets(data) {
 
   const offerbook = data?.offerbook || data || {};
   const good = offerbook.goodMakers || offerbook.good || offerbook.offers || [];
-  const bad = offerbook.badMakers || offerbook.bad || [];
-  const unresponsive =
+  const banned =
+    offerbook.bannedMakers ||
+    offerbook.banned_makers ||
+    offerbook.banned ||
+    offerbook.badMakers ||
+    offerbook.bad ||
+    [];
+  const unavailable =
+    offerbook.unavailableMakers ||
+    offerbook.unavailable_makers ||
+    offerbook.unavailable ||
     offerbook.unresponsiveMakers ||
     offerbook.unresponsive ||
     offerbook.unresponsive_makers ||
@@ -143,9 +158,11 @@ function normalizeOfferBuckets(data) {
 
   return {
     good: Array.isArray(good) ? good.map(unwrapOffer).filter(Boolean) : [],
-    bad: Array.isArray(bad) ? bad.map(unwrapOffer).filter(Boolean) : [],
-    unresponsive: Array.isArray(unresponsive)
-      ? unresponsive.map(unwrapOffer).filter(Boolean)
+    unavailable: Array.isArray(unavailable)
+      ? unavailable.map(unwrapOffer).filter(Boolean)
+      : [],
+    banned: Array.isArray(banned)
+      ? banned.map(unwrapOffer).filter(Boolean)
       : [],
   };
 }
@@ -194,8 +211,8 @@ function EmptyState({ loading, error, statusLabel }) {
 export default function App() {
   const [offerBuckets, setOfferBuckets] = useState({
     good: [],
-    bad: [],
-    unresponsive: [],
+    unavailable: [],
+    banned: [],
   });
   const [activeStatus, setActiveStatus] = useState("good");
   const [loading, setLoading] = useState(true);
@@ -258,8 +275,8 @@ export default function App() {
       totalLiquidity,
       counts: {
         good: offerBuckets.good.length,
-        bad: offerBuckets.bad.length,
-        unresponsive: offerBuckets.unresponsive.length,
+        unavailable: offerBuckets.unavailable.length,
+        banned: offerBuckets.banned.length,
       },
       withOffer: goodOffers.length,
     };
@@ -271,10 +288,10 @@ export default function App() {
 
   return (
     <>
-      <title>Marketd - CoinSwap Market</title>
+      <title>Marketd - OpenSwap Market</title>
       <meta
         name="description"
-        content="Live CoinSwap maker market: public maker data, liquidity depth, fidelity bonds, fees, and Tor maker addresses."
+        content="Live OpenSwap maker market: public maker data, liquidity depth, fidelity bonds, fees, and Tor maker addresses."
       />
 
       <div className="min-h-screen bg-[#f4f1e8] text-black">
@@ -287,7 +304,7 @@ export default function App() {
                 <span className="h-3 w-3 rounded-full bg-[#28c840]" />
               </div>
               <p className="font-mono text-[0.68rem] uppercase tracking-[0.3em] text-black/55">
-                Coinswap - Marketd
+                OpenSwap - Marketd
               </p>
               <div className="hidden items-center gap-2 font-mono text-[0.68rem] uppercase tracking-[0.2em] text-black/50 sm:flex">
                 <span className="h-2 w-2 rounded-full bg-[#00c853] shadow-[0_0_14px_rgba(0,200,83,0.8)]" />
@@ -302,7 +319,7 @@ export default function App() {
                     Market
                   </h1>
                   <p className="mt-2 max-w-3xl text-base leading-7 text-black/65">
-                    Live view of CoinSwap makers tracked by the market daemon.
+                    Live view of OpenSwap makers tracked by the market daemon.
                   </p>
                 </div>
 
@@ -336,7 +353,7 @@ export default function App() {
                   accent="bg-[#55a6ff]"
                   label="Active Makers"
                   value={stats.counts.good}
-                  note={`${stats.counts.good} good - ${stats.counts.bad} bad - ${stats.counts.unresponsive} unresponsive in this window.`}
+                  note={`${stats.counts.good} good - ${stats.counts.unavailable} unavailable - ${stats.counts.banned} banned in this window.`}
                 />
               </div>
 
@@ -384,9 +401,10 @@ export default function App() {
                     />
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[920px] border-separate border-spacing-y-2 font-mono text-sm">
+                      <table className="w-full min-w-[1020px] border-separate border-spacing-y-2 font-mono text-sm">
                         <thead>
                           <tr className="text-left text-[0.68rem] uppercase tracking-[0.18em] text-black/45">
+                            <th className="px-4 py-2 font-medium">Name</th>
                             <th className="px-4 py-2 font-medium">
                               Tor Address
                             </th>
@@ -419,6 +437,12 @@ export default function App() {
                               <tr key={rowKey} className="group/row">
                                 <td
                                   className="rounded-l-xl border-y border-l border-black/10 bg-white/35 px-4 py-3 text-black transition group-hover/row:border-[#f7931a]/25 group-hover/row:bg-[#f7931a]/5"
+                                  title={offer.name || "Unnamed legacy maker"}
+                                >
+                                  {offer.name || "None"}
+                                </td>
+                                <td
+                                  className="border-y border-black/10 bg-white/35 px-4 py-3 text-black transition group-hover/row:border-[#f7931a]/25 group-hover/row:bg-[#f7931a]/5"
                                   title={offer.address}
                                 >
                                   {formatTorAddress(offer.address)}

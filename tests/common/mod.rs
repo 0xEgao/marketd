@@ -79,7 +79,7 @@ pub fn send_to_address(bitcoind: &BitcoinD, addr: &Address, amount: Amount) -> T
         .unwrap()
 }
 
-/// Start a regtest `bitcoind` with the flags coinswap needs.
+/// Start a regtest `bitcoind` with the flags OpenSwap needs.
 ///
 /// Returns the running node (drop it to stop), the `host:port` RPC URL with
 /// the `http://` prefix stripped (the form `TakerInitConfig.rpc_config.url`
