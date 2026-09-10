@@ -1,16 +1,16 @@
 # marketd architecture
 
-`marketd` is a thin HTTP service that turns the coinswap network's live offerbook
+`marketd` is a thin HTTP service that turns the OpenSwap network's live offerbook
 into a JSON API and serves a React dashboard on top. It is a **read-only**
 aggregator, no swaps, no wallet operations, no maker-side logic. built on top
-of the [`coinswap`](https://github.com/citadel-tech/coinswap) `Taker` SDK.
+of the [`openswap`](https://github.com/citadel-foss/openswap) `Taker` SDK.
 
 ![Arch](./marketd-arch.png)
 
 ## What it does, in one paragraph
 
 Browsers ask `marketd` for a list of currently-good market offers. `marketd`
-keeps that list fresh by running coinswap's `Taker` in the background — which
+keeps that list fresh by running OpenSwap's `Taker` in the background — which
 discovers makers via Nostr, validates their fidelity bonds against a Bitcoin
 node, and fetches each maker's offer over Tor. The result is cached in memory
 and served to the frontend as JSON. The UI is a Vite-built React SPA bundled
@@ -37,7 +37,7 @@ than from `marketd` itself: a Bitcoin node (RPC + REST + ZMQ), a Tor daemon
 1. **HTTP server:** `tokio` async runtime with `axum`. Serves the SPA and the
    two API endpoints. Reads from the store; never blocks on the network.
 2. **Sync loop:** a blocking task spawned via `tokio::task::spawn_blocking`.
-   Owns a `coinswap::taker::Taker` instance and writes the store.
+   Owns an `openswap::taker::Taker` instance and writes the store.
 
 The store is `Arc<RwLock<OfferStore>>`. The HTTP thread takes a read lock per
 request (cheap), the sync thread takes a write lock once per cycle (also cheap,
@@ -86,7 +86,7 @@ loop {
         .into_iter()
         .filter(|m| matches!(m.state, MakerState::Good))
         .filter_map(|m| m.offer.as_ref()
-            .map(|o| ApiOffer::from_coinswap(o, &m.address, ts)))
+            .map(|o| ApiOffer::from_openswap(o, &m.address, ts)))
         .collect();
     store.write().unwrap().offers = offers;      // publish atomically
     thread::sleep(Duration::from_secs(cfg.sync_interval_secs));
@@ -95,7 +95,7 @@ loop {
 
 The transformation `MakerOfferCandidate -> ApiOffer` is in `state.rs`. It mostly
 copies fields, with one workaround: `FidelityBond::outpoint` is `pub(crate)` in
-the `coinswap` crate, so we round-trip through `serde_json::Value` to read
+the `openswap` crate, so we round-trip through `serde_json::Value` to read
 `outpoint.txid` and `outpoint.vout`. Once that field is made `pub`, the
 workaround can be deleted.
 
@@ -156,7 +156,7 @@ that lets you swap any of them for an external instance.
 - **No wallet operations**, even though `Taker::init` creates a wallet file.
   The wallet is only needed to satisfy the `Taker` constructor — `marketd` never
   signs, spends, or holds keys you'd care about.
-- **No swap logic.** `do_coinswap`, `recover_from_swap`, etc. are unused.
-- **No persistence beyond the offerbook.** `~/.coinswap/marketd/offerbook.json`
+- **No swap logic.** OpenSwap execution and recovery APIs are unused.
+- **No persistence beyond the offerbook.** `~/.openswap/marketd/offerbook.json`
   is written by `Taker`'s background service; `marketd` itself keeps no state.
 - **No auth on `/api/*`.** It's a public read-only feed.

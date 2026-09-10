@@ -514,37 +514,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
-name = "coinswap"
-version = "0.2.1"
-source = "git+https://github.com/citadel-tech/coinswap?rev=8d98134#8d981349a371d39623e8cb06a6506d1e682696d1"
-dependencies = [
- "aes-gcm",
- "bip39",
- "bitcoin",
- "bitcoind",
- "clap",
- "crossbeam-channel",
- "crossterm",
- "dirs",
- "hotpath",
- "log",
- "log4rs",
- "minreq",
- "nostr",
- "pbkdf2",
- "rust-coinselect",
- "rustls 0.23.40",
- "secp256k1 0.32.0-beta.2",
- "serde",
- "serde_cbor",
- "serde_json",
- "sha2",
- "socks",
- "tungstenite",
- "zmq",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,6 +750,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "electrum-client"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5059f13888a90486e7268bbce59b175f5f76b1c55e5b9c568ceaa42d2b8507c"
+dependencies = [
+ "bitcoin",
+ "byteorder",
+ "libc",
+ "log",
+ "rustls 0.23.40",
+ "serde",
+ "serde_json",
+ "webpki-roots 0.25.4",
+ "winapi",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -991,21 +977,6 @@ checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
 dependencies = [
  "windows-sys 0.61.2",
 ]
-
-[[package]]
-name = "hotpath"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdb7d0713302f121f02d93290b6303b320e886f462d2cde84146ce9f9e28f1f0"
-dependencies = [
- "hotpath-macros",
-]
-
-[[package]]
-name = "hotpath-macros"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51066092dc750f8cbcac4afa04592377bf7463a911d1beca430ddd788deb0757"
 
 [[package]]
 name = "http"
@@ -1432,8 +1403,8 @@ dependencies = [
  "axum",
  "bitcoind",
  "clap",
- "coinswap",
  "hex",
+ "openswap",
  "secp256k1 0.32.0-beta.2",
  "serde",
  "serde_cbor",
@@ -1573,6 +1544,38 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
+name = "openswap"
+version = "0.2.2"
+source = "git+https://github.com/citadel-foss/openswap?rev=852417ae10ca1244ad785fa30f35c72476954b8e#852417ae10ca1244ad785fa30f35c72476954b8e"
+dependencies = [
+ "aes-gcm",
+ "bip39",
+ "bitcoin",
+ "bitcoind",
+ "clap",
+ "crossbeam-channel",
+ "crossterm",
+ "dirs",
+ "electrum-client",
+ "log",
+ "log4rs",
+ "minreq",
+ "nostr",
+ "pbkdf2",
+ "rust-coinselect",
+ "rustls 0.23.40",
+ "secp256k1 0.33.1",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tungstenite",
+ "zeroize",
+ "zmq",
+]
 
 [[package]]
 name = "ordered-float"
@@ -1860,12 +1863,9 @@ dependencies = [
 
 [[package]]
 name = "rust-coinselect"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e0a587a43bee0b27acd75833dc2d436deff8704b0d24a2a3e02b76dc79fb35"
-dependencies = [
- "rand 0.8.6",
-]
+checksum = "7a3ec89a5204b1492f300f2bbbb88d64ae189bef97b2b61f5d39f66276dd4346"
 
 [[package]]
 name = "rustc_version"
@@ -1920,6 +1920,7 @@ version = "0.23.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
 dependencies = [
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -2039,6 +2040,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1"
+version = "0.33.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7f404a8dab7a7a5a631e741d8699aa9c8e1d689fc26ccf897c7187565490b69"
+dependencies = [
+ "rand 0.9.4",
+ "secp256k1-sys 0.14.1",
+]
+
+[[package]]
 name = "secp256k1-sys"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2052,6 +2063,15 @@ name = "secp256k1-sys"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d3be00697c88c00fe102af8dc316038cc2062eab8da646e7463f4c0e70ca9fd"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6b2992d4a3cd244539a7d5d0966aadbe5ca7fb868a5d7e38c29499b9e709bbd"
 dependencies = [
  "cc",
 ]
@@ -2258,17 +2278,6 @@ checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "socks"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3dbbd9ae980613c6dd8e28a9407b50509d3803b57624d5dfe8315218cd58b"
-dependencies = [
- "byteorder",
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -3301,6 +3310,20 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "zeromq-src"

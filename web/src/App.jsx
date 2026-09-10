@@ -271,10 +271,10 @@ export default function App() {
 
   return (
     <>
-      <title>Marketd - CoinSwap Market</title>
+      <title>Marketd - OpenSwap Market</title>
       <meta
         name="description"
-        content="Live CoinSwap maker market: public maker data, liquidity depth, fidelity bonds, fees, and Tor maker addresses."
+        content="Live OpenSwap maker market: public maker data, liquidity depth, fidelity bonds, fees, and Tor maker addresses."
       />
 
       <div className="min-h-screen bg-[#f4f1e8] text-black">
@@ -287,7 +287,7 @@ export default function App() {
                 <span className="h-3 w-3 rounded-full bg-[#28c840]" />
               </div>
               <p className="font-mono text-[0.68rem] uppercase tracking-[0.3em] text-black/55">
-                Coinswap - Marketd
+                OpenSwap - Marketd
               </p>
               <div className="hidden items-center gap-2 font-mono text-[0.68rem] uppercase tracking-[0.2em] text-black/50 sm:flex">
                 <span className="h-2 w-2 rounded-full bg-[#00c853] shadow-[0_0_14px_rgba(0,200,83,0.8)]" />
@@ -302,7 +302,7 @@ export default function App() {
                     Market
                   </h1>
                   <p className="mt-2 max-w-3xl text-base leading-7 text-black/65">
-                    Live view of CoinSwap makers tracked by the market daemon.
+                    Live view of OpenSwap makers tracked by the market daemon.
                   </p>
                 </div>
 

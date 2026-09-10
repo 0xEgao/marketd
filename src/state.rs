@@ -1,4 +1,4 @@
-use coinswap::{
+use openswap::{
     protocol::common_messages::Offer,
     taker::offers::{MakerOfferCandidate, MakerProtocol, MakerState},
 };
@@ -36,7 +36,7 @@ pub struct ApiOffer {
 }
 
 impl ApiOffer {
-    pub fn from_coinswap(offer: &Offer) -> Self {
+    pub fn from_openswap(offer: &Offer) -> Self {
         let bond = &offer.fidelity.bond;
         let outpoint = bond.outpoint();
 
@@ -112,7 +112,7 @@ impl ApiMaker {
             timestamp,
             last_offer_update_ts: candidate.last_offer_update_ts,
             next_offer_check_ts: candidate.next_offer_check_ts,
-            offer: candidate.offer.as_ref().map(ApiOffer::from_coinswap),
+            offer: candidate.offer.as_ref().map(ApiOffer::from_openswap),
         }
     }
 }

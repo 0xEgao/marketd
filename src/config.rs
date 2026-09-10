@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser, Clone, Debug)]
-#[command(name = "marketd", about = "Coinswap market offer aggregator daemon")]
+#[command(name = "marketd", about = "OpenSwap market offer aggregator daemon")]
 pub struct Config {
     #[arg(
         long,
@@ -22,6 +22,9 @@ pub struct Config {
         default_value = "tcp://127.0.0.1:28332"
     )]
     pub zmq_addr: String,
+
+    #[arg(long, env = "MARKETD_WALLET_PASSWORD", default_value = "openswap")]
+    pub wallet_password: String,
 
     #[arg(long, env = "MARKETD_TOR_CONTROL_PORT", default_value_t = 9051)]
     pub tor_control_port: u16,
