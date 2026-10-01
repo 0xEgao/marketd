@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use openswap::{
     taker::{TakerInitConfig, api::ConnectionType, offers::MakerOfferCandidate},
-    wallet::{BackendConfig, CoreRpcConfig},
+    wallet::{BackendConfig, CoreRpcConfig, ElectrumConfig},
 };
 
 use crate::{config::Config, state};
@@ -65,29 +65,70 @@ fn wait_for_tcp(addr: &str, label: &str) {
 pub fn build_taker_config(cfg: &Config) -> TakerInitConfig {
     use bitcoind::bitcoincore_rpc::Auth;
 
-    let wallet_name = "marketd-wallet".to_string();
-    let rpc_config = CoreRpcConfig {
-        url: cfg.bitcoin_rpc_url.clone(),
-        auth: Auth::UserPass(cfg.bitcoin_rpc_user.clone(), cfg.bitcoin_rpc_pass.clone()),
-        wallet_name: wallet_name.clone(),
-        zmq_addr: cfg.zmq_addr.clone(),
-    };
-
     TakerInitConfig {
-        backend: BackendConfig::CoreRpc(rpc_config),
-        wallet_name,
+        data_dir: cfg.data_dir.clone(),
+        backend: BackendConfig::CoreRpc(CoreRpcConfig {
+            url: cfg.bitcoin_rpc_url.clone(),
+            auth: Auth::UserPass(cfg.bitcoin_rpc_user.clone(), cfg.bitcoin_rpc_pass.clone()),
+            wallet_name: cfg.wallet_name.clone(),
+            zmq_addr: cfg.zmq_addr.clone(),
+        }),
+        wallet_name: cfg.wallet_name.clone(),
         control_port: Some(cfg.tor_control_port),
         tor_auth_password: Some(cfg.tor_auth_password.clone()),
+        socks_port: cfg.tor_socks_port,
+        password: Some(cfg.wallet_password.clone()),
+        ..TakerInitConfig::default()
+    }
+}
+
+/// Build the independent Mainnet scanner. It has a separate wallet and data
+/// directory so its wallet, offerbook, and discovery cursors cannot mix with
+/// the Bitcoin Core-backed scanner.
+pub fn build_mainnet_taker_config(cfg: &Config) -> TakerInitConfig {
+    TakerInitConfig {
+        data_dir: Some(cfg.mainnet_data_dir.clone()),
+        backend: BackendConfig::Electrum(ElectrumConfig {
+            url: cfg.electrum_url.trim().to_owned(),
+            socks5: cfg
+                .electrum_tor
+                .then(|| format!("127.0.0.1:{}", cfg.tor_socks_port)),
+            ..ElectrumConfig::default()
+        }),
+        wallet_name: cfg.mainnet_wallet_name.clone(),
+        control_port: Some(cfg.tor_control_port),
+        tor_auth_password: Some(cfg.tor_auth_password.clone()),
+        socks_port: cfg.tor_socks_port,
         password: Some(cfg.wallet_password.clone()),
         ..TakerInitConfig::default()
     }
 }
 
 pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: state::SharedStore) {
+    sync_loop_for("default", init_config, sync_interval_secs, store);
+}
+
+pub fn sync_loop_for(
+    scanner: &'static str,
+    init_config: TakerInitConfig,
+    sync_interval_secs: u64,
+    store: state::SharedStore,
+) {
     use openswap::taker::Taker;
 
-    if let BackendConfig::CoreRpc(rpc) = &init_config.backend {
-        wait_for_tcp(&rpc.url, "Bitcoin RPC");
+    match &init_config.backend {
+        BackendConfig::CoreRpc(rpc) => {
+            tracing::info!(scanner, url = %rpc.url, "Using Bitcoin Core backend");
+            wait_for_tcp(&rpc.url, "Bitcoin RPC");
+        }
+        BackendConfig::Electrum(electrum) => {
+            tracing::info!(
+                scanner,
+                url = %electrum.url,
+                tor = electrum.socks5.is_some(),
+                "Using Electrum backend"
+            );
+        }
     }
     if init_config.connection_type == ConnectionType::Tor
         && let Some(port) = init_config.control_port
@@ -96,14 +137,14 @@ pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: s
     }
 
     let taker = loop {
-        tracing::info!("Initializing Taker...");
+        tracing::info!(scanner, "Initializing Taker...");
         match Taker::init(init_config.clone()) {
             Ok(t) => {
-                tracing::info!("Taker initialized successfully");
+                tracing::info!(scanner, "Taker initialized successfully");
                 break t;
             }
             Err(e) => {
-                tracing::warn!(error = ?e, "Taker init failed, retrying in 15s (waiting for Bitcoin node / Tor)");
+                tracing::warn!(scanner, error = ?e, "Taker init failed, retrying in 15s (waiting for blockchain backend / Tor)");
                 std::thread::sleep(Duration::from_secs(15));
             }
         }
@@ -111,7 +152,7 @@ pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: s
 
     loop {
         if let Err(e) = taker.sync_offerbook_and_wait() {
-            tracing::error!(error = ?e, "sync_offerbook_and_wait failed");
+            tracing::error!(scanner, error = ?e, "sync_offerbook_and_wait failed");
             std::thread::sleep(Duration::from_secs(sync_interval_secs));
             continue;
         }
@@ -119,7 +160,7 @@ pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: s
         let book = match taker.fetch_offers() {
             Ok(b) => b,
             Err(e) => {
-                tracing::error!(error = ?e, "fetch_offers failed");
+                tracing::error!(scanner, error = ?e, "fetch_offers failed");
                 std::thread::sleep(Duration::from_secs(sync_interval_secs));
                 continue;
             }
@@ -149,6 +190,7 @@ pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: s
         }
 
         tracing::info!(
+            scanner,
             count,
             with_offer,
             "Sync done, sleeping {sync_interval_secs}s"
@@ -160,6 +202,7 @@ pub fn sync_loop(init_config: TakerInitConfig, sync_interval_secs: u64, store: s
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use openswap::taker::offers::{
         BanReason, BanRecord, MakerState, UnavailableReason, UnavailableState,
     };
@@ -200,6 +243,66 @@ mod tests {
             reason: BanReason::LegacyProvenViolation,
             recorded_at_ts: 1,
         })
+    }
+
+    #[test]
+    fn electrum_config_matches_taker_backend_selection() {
+        let cfg = Config::try_parse_from([
+            "marketd",
+            "--electrum",
+            "ssl://electrum.example.org:50002",
+            "--electrum-tor",
+            "--tor-socks-port",
+            "19050",
+            "--mainnet-wallet-name",
+            "custom-mainnet-wallet",
+            "--mainnet-data-dir",
+            "custom-mainnet-data",
+        ])
+        .unwrap();
+
+        let taker = build_mainnet_taker_config(&cfg);
+        assert_eq!(taker.wallet_name, "custom-mainnet-wallet");
+        assert_eq!(
+            taker.data_dir.as_deref(),
+            Some(std::path::Path::new("custom-mainnet-data"))
+        );
+        assert_eq!(taker.socks_port, 19050);
+        match taker.backend {
+            BackendConfig::Electrum(electrum) => {
+                assert_eq!(electrum.url, "ssl://electrum.example.org:50002");
+                assert_eq!(electrum.socks5.as_deref(), Some("127.0.0.1:19050"));
+            }
+            BackendConfig::CoreRpc(_) => panic!("expected Electrum backend"),
+        }
+    }
+
+    #[test]
+    fn blockstream_electrum_is_the_default_backend() {
+        let cfg = Config::try_parse_from(["marketd"]).unwrap();
+        let taker = build_mainnet_taker_config(&cfg);
+
+        match taker.backend {
+            BackendConfig::Electrum(electrum) => {
+                assert_eq!(electrum.url, "ssl://electrum.blockstream.info:50002");
+                assert_eq!(electrum.socks5, None);
+            }
+            BackendConfig::CoreRpc(_) => panic!("expected Electrum backend"),
+        }
+    }
+
+    #[test]
+    fn bitcoin_core_config_remains_the_default_api_backend() {
+        let cfg = Config::try_parse_from(["marketd"]).unwrap();
+        let taker = build_taker_config(&cfg);
+
+        match taker.backend {
+            BackendConfig::CoreRpc(core) => {
+                assert_eq!(core.url, "localhost:18443");
+                assert_eq!(core.wallet_name, "marketd-wallet");
+            }
+            BackendConfig::Electrum(_) => panic!("expected Bitcoin Core backend"),
+        }
     }
 
     #[test]

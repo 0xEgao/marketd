@@ -26,6 +26,8 @@ fn health_and_makers_empty_store() {
     assert_eq!(resp.status(), 200);
     let body: Value = resp.into_json().expect("health JSON");
     assert_eq!(body["status"], "ok");
+    assert_eq!(body["network"], "signet");
+    assert_eq!(body["backend"], "bitcoin_core");
     assert_eq!(body["maker_count"], 0);
     assert_eq!(body["with_offer"], 0);
     assert!(body["last_sync"].is_null());
@@ -38,6 +40,53 @@ fn health_and_makers_empty_store() {
     assert_eq!(resp.status(), 200);
     let makers: Value = resp.into_json().expect("makers JSON");
     assert_eq!(makers.as_array().expect("array").len(), 0);
+}
+
+#[test]
+fn mainnet_routes_use_the_independent_electrum_store() {
+    let signet_store = new_store();
+    let mainnet_store = new_store();
+    mainnet_store.write().unwrap().makers.push(ApiMaker {
+        address: "mainnet-maker.onion".into(),
+        state: ApiMakerState::Good,
+        protocol: Some("taproot"),
+        timestamp: 1_700_000_001,
+        last_offer_update_ts: None,
+        next_offer_check_ts: None,
+        offer: None,
+    });
+
+    let guard = common::MarketdServerGuard::start_dual(signet_store, mainnet_store);
+
+    let signet: Value = guard
+        .agent
+        .get(&guard.url("/api/makers"))
+        .call()
+        .expect("GET /api/makers")
+        .into_json()
+        .expect("signet makers JSON");
+    assert_eq!(signet.as_array().unwrap().len(), 0);
+
+    let mainnet: Value = guard
+        .agent
+        .get(&guard.url("/api/mainnet/makers"))
+        .call()
+        .expect("GET /api/mainnet/makers")
+        .into_json()
+        .expect("mainnet makers JSON");
+    assert_eq!(mainnet.as_array().unwrap().len(), 1);
+    assert_eq!(mainnet[0]["address"], "mainnet-maker.onion");
+
+    let health: Value = guard
+        .agent
+        .get(&guard.url("/api/mainnet/health"))
+        .call()
+        .expect("GET /api/mainnet/health")
+        .into_json()
+        .expect("mainnet health JSON");
+    assert_eq!(health["network"], "mainnet");
+    assert_eq!(health["backend"], "electrum");
+    assert_eq!(health["maker_count"], 1);
 }
 
 #[test]

@@ -10,6 +10,44 @@ Marketd uses `MARKETD_WALLET_PASSWORD` for OpenSwap's required encrypted
 wallet. `run.sh` defaults it to the configured Tor password; direct runs default
 to `openswap` and should override it in production.
 
+### Signet and Mainnet scanners
+
+A single Marketd process runs two isolated OpenSwap takers at the same time:
+
+- `GET /api/makers` and `GET /api/health` use the existing Signet Bitcoin Core
+  RPC/ZMQ backend.
+- `GET /api/mainnet/makers` and `GET /api/mainnet/health` use Mainnet Electrum.
+
+The frontend network toggle switches between those two maker endpoints. The
+two takers use separate data directories and wallet names so their offerbooks
+and discovery state cannot mix.
+
+The Mainnet scanner defaults to Blockstream's Electrum endpoint. Add
+`--electrum-tor` when running Marketd directly to route Electrum through the
+configured Tor SOCKS proxy:
+
+```bash
+cargo run -- \
+  --electrum ssl://electrum.blockstream.info:50002 \
+  --electrum-tor \
+  --mainnet-wallet-name marketd-mainnet
+```
+
+The equivalent environment variables are:
+
+```bash
+MARKETD_ELECTRUM_URL=ssl://electrum.blockstream.info:50002
+MARKETD_ELECTRUM_TOR=true
+MARKETD_TOR_SOCKS_PORT=9050
+MARKETD_MAINNET_WALLET_NAME=marketd-mainnet
+```
+
+The Docker Compose deployment enables `MARKETD_ELECTRUM_TOR` by default. The
+Electrum server's genesis header determines the Bitcoin network. Electrum
+does not provide full blocks, so maker discovery is performed through the
+network-specific OpenSwap Nostr subscription; Electrum verifies the announced
+fidelity bonds.
+
 ## Quick Start
 
 ### Prerequisites
@@ -18,16 +56,25 @@ to `openswap` and should override it in production.
 
 ### Run everything
 ```bash
-chmod +x run.sh
-./run.sh
+docker compose up -d --build
 ```
 
-Open http://localhost:5173
+This expects the Signet Bitcoin Core RPC and ZMQ endpoints to be available on
+the VPS host at `127.0.0.1:38332` and `tcp://127.0.0.1:28332`. Their credentials
+default to `signet` / `signetpass` and can be overridden with the environment
+variables shown in `docker-compose.yml`. Open `http://<vps-host>:3005` after the
+container starts.
+
+For the interactive configuration helper instead:
+
+```bash
+chmod +x run.sh
+./run.sh prod
+```
 
 ### Manual setup
 Backend:
 ```bash
-cd daemon
 cargo run
 ```
 

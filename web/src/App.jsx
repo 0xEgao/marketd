@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -12,6 +12,25 @@ const LEGACY_STATUS_ALIASES = {
   bad: "banned",
   unresponsive: "unavailable",
 };
+
+const NETWORKS = [
+  {
+    id: "signet",
+    label: "Signet",
+    apiPath: "/api/makers",
+    explorerBase:
+      import.meta.env.VITE_SIGNET_EXPLORER_BASE ||
+      import.meta.env.VITE_EXPLORER_BASE ||
+      "http://170.75.166.88:8080",
+  },
+  {
+    id: "mainnet",
+    label: "Mainnet",
+    apiPath: "/api/mainnet/makers",
+    explorerBase:
+      import.meta.env.VITE_MAINNET_EXPLORER_BASE || "https://blockstream.info",
+  },
+];
 
 function RefreshIcon({ spinning = false }) {
   return (
@@ -219,17 +238,20 @@ export default function App() {
   const [error, setError] = useState("");
   const [lastSynced, setLastSynced] = useState(null);
   const [responseTimeMs, setResponseTimeMs] = useState(null);
+  const [activeNetworkId, setActiveNetworkId] = useState("signet");
+  const requestSequence = useRef(0);
 
-  const explorerBase =
-    import.meta.env.VITE_EXPLORER_BASE || "http://170.75.166.88:8080";
+  const activeNetwork =
+    NETWORKS.find((network) => network.id === activeNetworkId) || NETWORKS[0];
 
   const fetchOffers = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setLoading(true);
     setError("");
     const startedAt = performance.now();
 
     try {
-      const response = await fetch("/api/makers", {
+      const response = await fetch(activeNetwork.apiPath, {
         headers: { Accept: "application/json" },
       });
 
@@ -242,16 +264,20 @@ export default function App() {
         throw new Error("Endpoint returned an unexpected payload");
       }
 
-      setOfferBuckets(normalizeOfferBuckets(data));
-      setLastSynced(new Date());
-      setResponseTimeMs(Math.round(performance.now() - startedAt));
+      if (requestId === requestSequence.current) {
+        setOfferBuckets(normalizeOfferBuckets(data));
+        setLastSynced(new Date());
+        setResponseTimeMs(Math.round(performance.now() - startedAt));
+      }
     } catch (err) {
       console.error("[market] failed to fetch makers", err);
-      setError(err.message || "Could not fetch makers.");
+      if (requestId === requestSequence.current) {
+        setError(err.message || "Could not fetch makers.");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestSequence.current) setLoading(false);
     }
-  }, []);
+  }, [activeNetwork]);
 
   useEffect(() => {
     fetchOffers();
@@ -319,19 +345,42 @@ export default function App() {
                     Market
                   </h1>
                   <p className="mt-2 max-w-3xl text-base leading-7 text-black/65">
-                    Live view of OpenSwap makers tracked by the market daemon.
+                    Live view of OpenSwap makers on {activeNetwork.label}.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={fetchOffers}
-                  disabled={loading}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#f7931a] px-5 py-3 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#071221] transition hover:-translate-y-0.5 hover:bg-[#ffad3d] disabled:cursor-wait disabled:opacity-70"
-                >
-                  <RefreshIcon spinning={loading} />
-                  {loading ? "Refreshing" : "Refresh"}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div
+                    className="inline-flex rounded-full border border-black/15 bg-black/[0.04] p-1"
+                    aria-label="Bitcoin network"
+                  >
+                    {NETWORKS.map((network) => (
+                      <button
+                        key={network.id}
+                        type="button"
+                        aria-pressed={activeNetworkId === network.id}
+                        onClick={() => setActiveNetworkId(network.id)}
+                        className={`rounded-full px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                          activeNetworkId === network.id
+                            ? "bg-black text-white shadow-sm"
+                            : "text-black/55 hover:text-black"
+                        }`}
+                      >
+                        {network.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fetchOffers}
+                    disabled={loading}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#f7931a] px-5 py-3 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-[#071221] transition hover:-translate-y-0.5 hover:bg-[#ffad3d] disabled:cursor-wait disabled:opacity-70"
+                  >
+                    <RefreshIcon spinning={loading} />
+                    {loading ? "Refreshing" : "Refresh"}
+                  </button>
+                </div>
               </div>
 
               <div className="mb-6 grid gap-4 lg:grid-cols-3">
@@ -468,7 +517,7 @@ export default function App() {
                                 >
                                   {txid ? (
                                     <a
-                                      href={`${explorerBase}/tx/${txid}`}
+                                      href={`${activeNetwork.explorerBase}/tx/${txid}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       title="Open fidelity bond transaction"
